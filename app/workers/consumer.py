@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import random
 from typing import Any
 from uuid import UUID
 
@@ -67,9 +68,14 @@ class TaskWorker:
                     await self._execute_task(payload, session, task)
                 except Exception as exc:  # noqa: BLE001
                     logger.error(f"Task {task_id} failed: {exc}", exc_info=True)
-                    task.mark_failed(error=str(exc))
-                    await session.flush()
-                    await session.commit()
+                    # Re-fetch task to ensure it's attached to the session after commit
+                    task = await repository.get_by_id(task_id, with_lock=True)
+                    if task:
+                        error_message = str(exc) if str(exc) else repr(exc)
+                        task.mark_failed(error=error_message)
+                        await session.flush()
+                        await session.commit()
+                        logger.info(f"Task {task_id} marked as FAILED with error: {error_message}")
 
     async def _execute_task(
         self, payload: dict[str, Any], session: AsyncSession, task: Task
@@ -77,6 +83,8 @@ class TaskWorker:
         # Simulate real work; replace with business logic as needed.
         logger.info(f"Executing task {task.id}")
         await asyncio.sleep(1)
+        if random.randint(0, 10) == 5:
+            raise ValueError("Simulated task failure")  # simulate error
         if task.status == TaskStatus.CANCELLED:
             logger.info(f"Task {task.id} was cancelled during execution")
             return
