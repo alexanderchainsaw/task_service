@@ -1,0 +1,84 @@
+services:
+  postgres:
+    container_name: postgres
+    image: postgres:14-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tasks
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres" ]
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      TASKS_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/tasks
+      TASKS_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      TASKS_QUEUE_NAME: tasks
+      TASKS_QUEUE_MAX_PRIORITY: 10
+      TASKS_WORKER_PREFETCH: 4
+    ports:
+      - "8000:8000"
+    command: uvicorn app:app --host 0.0.0.0 --port 8000
+
+  publisher:
+    deploy:
+      replicas: 3
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      TASKS_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/tasks
+      TASKS_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      TASKS_QUEUE_NAME: tasks
+      TASKS_QUEUE_MAX_PRIORITY: 10
+      TASKS_WORKER_PREFETCH: 4
+    command: python -m app.workers.publisher
+
+  consumer:
+    deploy:
+      replicas: 3
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      TASKS_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/tasks
+      TASKS_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      TASKS_QUEUE_NAME: tasks
+      TASKS_QUEUE_MAX_PRIORITY: 10
+      TASKS_WORKER_PREFETCH: 4
+    command: python -m app.workers.consumer
+
+volumes:
+  postgres_data:
+
