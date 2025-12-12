@@ -18,7 +18,7 @@
 1) Скопируйте `.env.example` в `.env` и при необходимости настройте.
 2) Соберите и запустите:
 ```
-docker compose up --build
+make run
 ```
 3) Документация API: http://localhost:8000/docs
 
@@ -30,11 +30,6 @@ docker compose up --build
 - `worker`: Воркер, который обрабатывает задачи из очереди
 
 * Примечание: и publisher и consumer можно запустить в нескольких инстансах, поменяв значение replicas в docker-compose.yml
-
-### Миграции
-```
-docker compose run --rm app alembic upgrade head
-```
 
 ### Тесты
 
