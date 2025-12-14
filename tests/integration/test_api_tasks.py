@@ -6,14 +6,14 @@ from uuid import uuid4
 
 import pytest
 
-from app.db.models import TaskPriority, TaskStatus
+from app.db.models import TaskName, TaskPriority, TaskStatus
 
 
 @pytest.mark.asyncio
 async def test_create_task_endpoint(test_client):
     """Test POST /api/v1/tasks - creating a task."""
     payload = {
-        "title": "Integration Test Task",
+        "task_name": TaskName.SEND_EMAIL.value,
         "description": "This is a test task",
         "priority": TaskPriority.HIGH.value,
     }
@@ -21,7 +21,7 @@ async def test_create_task_endpoint(test_client):
 
     assert response.status_code == 201
     data = response.json()
-    assert data["title"] == "Integration Test Task"
+    assert data["task_name"] == TaskName.SEND_EMAIL.value
     assert data["description"] == "This is a test task"
     assert data["priority"] == TaskPriority.HIGH.value
     assert data["status"] == TaskStatus.NEW.value  # Tasks are created with NEW status
@@ -29,17 +29,18 @@ async def test_create_task_endpoint(test_client):
     assert data["created_at"] is not None
     assert data["started_at"] is None
     assert data["completed_at"] is None
+    assert data["result"] is None
 
 
 @pytest.mark.asyncio
 async def test_create_task_with_defaults(test_client):
     """Test creating task with minimal required fields."""
-    payload = {"title": "Minimal Task"}
+    payload = {"task_name": TaskName.SEND_EMAIL.value}
     response = await test_client.post("/api/v1/tasks", json=payload)
 
     assert response.status_code == 201
     data = response.json()
-    assert data["title"] == "Minimal Task"
+    assert data["task_name"] == TaskName.SEND_EMAIL.value
     assert data["description"] is None
     assert data["priority"] == TaskPriority.MEDIUM.value  # Default
     assert data["status"] == TaskStatus.NEW.value  # Tasks are created with NEW status
@@ -54,7 +55,12 @@ async def test_create_task_validation_error(test_client):
     assert response.status_code == 422
 
     # Invalid priority
-    payload = {"title": "Test", "priority": "INVALID"}
+    payload = {"task_name": TaskName.SEND_EMAIL.value, "priority": "INVALID"}
+    response = await test_client.post("/api/v1/tasks", json=payload)
+    assert response.status_code == 422
+
+    # Invalid task_name
+    payload = {"task_name": "INVALID_TASK_NAME", "priority": TaskPriority.MEDIUM.value}
     response = await test_client.post("/api/v1/tasks", json=payload)
     assert response.status_code == 422
 
@@ -63,7 +69,7 @@ async def test_create_task_validation_error(test_client):
 async def test_get_task_endpoint(test_client):
     """Test GET /api/v1/tasks/{task_id} - retrieving a task."""
     # Create a task first
-    create_payload = {"title": "Get Test Task", "priority": TaskPriority.MEDIUM.value}
+    create_payload = {"task_name": TaskName.SEND_EMAIL.value, "priority": TaskPriority.MEDIUM.value}
     create_response = await test_client.post("/api/v1/tasks", json=create_payload)
     task_id = create_response.json()["id"]
 
@@ -72,7 +78,7 @@ async def test_get_task_endpoint(test_client):
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == task_id
-    assert data["title"] == "Get Test Task"
+    assert data["task_name"] == TaskName.SEND_EMAIL.value
 
 
 @pytest.mark.asyncio
@@ -95,8 +101,9 @@ async def test_get_task_invalid_uuid(test_client):
 async def test_list_tasks_endpoint(test_client):
     """Test GET /api/v1/tasks - listing tasks."""
     # Create multiple tasks
+    task_names = [TaskName.SEND_EMAIL, TaskName.SEND_BULK_EMAIL, TaskName.RESIZE_IMAGE]
     for i in range(3):
-        payload = {"title": f"List Test Task {i}", "priority": TaskPriority.MEDIUM.value}
+        payload = {"task_name": task_names[i].value, "priority": TaskPriority.MEDIUM.value}
         await test_client.post("/api/v1/tasks", json=payload)
 
     # List tasks
@@ -111,7 +118,7 @@ async def test_list_tasks_endpoint(test_client):
 async def test_list_tasks_with_status_filter(test_client):
     """Test listing tasks filtered by status."""
     # Create tasks
-    payload1 = {"title": "Pending Task", "priority": TaskPriority.MEDIUM.value}
+    payload1 = {"task_name": TaskName.SEND_EMAIL.value, "priority": TaskPriority.MEDIUM.value}
     response1 = await test_client.post("/api/v1/tasks", json=payload1)
     task1_id = response1.json()["id"]
 
@@ -126,8 +133,8 @@ async def test_list_tasks_with_status_filter(test_client):
 async def test_list_tasks_with_priority_filter(test_client):
     """Test listing tasks filtered by priority."""
     # Create tasks with different priorities
-    await test_client.post("/api/v1/tasks", json={"title": "High", "priority": TaskPriority.HIGH.value})
-    await test_client.post("/api/v1/tasks", json={"title": "Low", "priority": TaskPriority.LOW.value})
+    await test_client.post("/api/v1/tasks", json={"task_name": TaskName.SEND_EMAIL.value, "priority": TaskPriority.HIGH.value})
+    await test_client.post("/api/v1/tasks", json={"task_name": TaskName.SEND_BULK_EMAIL.value, "priority": TaskPriority.LOW.value})
 
     # Filter by priority
     response = await test_client.get(f"/api/v1/tasks?priority={TaskPriority.HIGH.value}")
@@ -140,7 +147,7 @@ async def test_list_tasks_with_priority_filter(test_client):
 async def test_list_tasks_with_date_filters(test_client):
     """Test listing tasks filtered by creation date."""
     # Create a task
-    await test_client.post("/api/v1/tasks", json={"title": "Date Test", "priority": TaskPriority.MEDIUM.value})
+    await test_client.post("/api/v1/tasks", json={"task_name": TaskName.SEND_EMAIL.value, "priority": TaskPriority.MEDIUM.value})
 
     # Filter by date range - URL encode ISO format dates to handle colons
     from_date = (datetime.now(timezone.utc) - timedelta(days=1))
@@ -162,8 +169,10 @@ async def test_list_tasks_with_date_filters(test_client):
 async def test_list_tasks_with_pagination(test_client):
     """Test listing tasks with pagination."""
     # Create 10 tasks
+    task_names = [TaskName.SEND_EMAIL, TaskName.SEND_BULK_EMAIL, TaskName.RESIZE_IMAGE, TaskName.COMPRESS_IMAGE, TaskName.EXPORT_DATA, TaskName.IMPORT_DATA]
     for i in range(10):
-        payload = {"title": f"Page Test {i}", "priority": TaskPriority.MEDIUM.value}
+        task_name = task_names[i % len(task_names)]
+        payload = {"task_name": task_name.value, "priority": TaskPriority.MEDIUM.value}
         await test_client.post("/api/v1/tasks", json=payload)
 
     # First page
@@ -204,7 +213,7 @@ async def test_list_tasks_pagination_validation(test_client):
 async def test_get_task_status_endpoint(test_client):
     """Test GET /api/v1/tasks/{task_id}/status - getting task status."""
     # Create a task
-    create_payload = {"title": "Status Test Task", "priority": TaskPriority.MEDIUM.value}
+    create_payload = {"task_name": TaskName.SEND_EMAIL.value, "priority": TaskPriority.MEDIUM.value}
     create_response = await test_client.post("/api/v1/tasks", json=create_payload)
     task_id = create_response.json()["id"]
 
@@ -230,7 +239,7 @@ async def test_get_task_status_nonexistent(test_client):
 async def test_cancel_task_endpoint(test_client):
     """Test DELETE /api/v1/tasks/{task_id} - cancelling a task."""
     # Create a task
-    create_payload = {"title": "Cancel Test Task", "priority": TaskPriority.MEDIUM.value}
+    create_payload = {"task_name": TaskName.SEND_EMAIL.value, "priority": TaskPriority.MEDIUM.value}
     create_response = await test_client.post("/api/v1/tasks", json=create_payload)
     task_id = create_response.json()["id"]
 
@@ -256,7 +265,7 @@ async def test_cancel_completed_task(test_client):
     """Test that cancelling a completed task doesn't change status."""
     # Create and complete a task (simulated by direct DB manipulation)
     # For integration test, we'll just verify the endpoint works
-    create_payload = {"title": "Completed Task", "priority": TaskPriority.MEDIUM.value}
+    create_payload = {"task_name": TaskName.SEND_EMAIL.value, "priority": TaskPriority.MEDIUM.value}
     create_response = await test_client.post("/api/v1/tasks", json=create_payload)
     task_id = create_response.json()["id"]
 
@@ -270,7 +279,7 @@ async def test_task_lifecycle_integration(test_client):
     """Test complete task lifecycle through API."""
     # 1. Create task
     create_payload = {
-        "title": "Lifecycle Test",
+        "task_name": TaskName.SEND_EMAIL.value,
         "description": "Testing full lifecycle",
         "priority": TaskPriority.HIGH.value,
     }
@@ -303,16 +312,16 @@ async def test_task_lifecycle_integration(test_client):
 @pytest.mark.asyncio
 async def test_list_tasks_ordering(test_client):
     """Test that tasks are properly ordered by priority and creation time."""
-    # Create tasks with different priorities and unique titles
-    title_low = "Ordering Integration Test Low"
-    title_high = "Ordering Integration Test High"
-    title_medium = "Ordering Integration Test Medium"
+    # Create tasks with different priorities and unique task names
+    task_name_low = TaskName.EXPORT_DATA
+    task_name_high = TaskName.SEND_EMAIL
+    task_name_medium = TaskName.RESIZE_IMAGE
     
-    await test_client.post("/api/v1/tasks", json={"title": title_low, "priority": TaskPriority.LOW.value})
+    await test_client.post("/api/v1/tasks", json={"task_name": task_name_low.value, "priority": TaskPriority.LOW.value})
     await asyncio.sleep(0.01)
-    await test_client.post("/api/v1/tasks", json={"title": title_high, "priority": TaskPriority.HIGH.value})
+    await test_client.post("/api/v1/tasks", json={"task_name": task_name_high.value, "priority": TaskPriority.HIGH.value})
     await asyncio.sleep(0.01)
-    await test_client.post("/api/v1/tasks", json={"title": title_medium, "priority": TaskPriority.MEDIUM.value})
+    await test_client.post("/api/v1/tasks", json={"task_name": task_name_medium.value, "priority": TaskPriority.MEDIUM.value})
 
     # Get all tasks - may need to paginate if there are many
     all_tasks = []
@@ -329,14 +338,14 @@ async def test_list_tasks_ordering(test_client):
             break
         offset += limit
 
-    # Find our tasks
-    high_task = next((t for t in all_tasks if t["title"] == title_high), None)
-    medium_task = next((t for t in all_tasks if t["title"] == title_medium), None)
-    low_task = next((t for t in all_tasks if t["title"] == title_low), None)
+    # Find our tasks by task_name and priority
+    high_task = next((t for t in all_tasks if t["task_name"] == task_name_high.value and t["priority"] == TaskPriority.HIGH.value), None)
+    medium_task = next((t for t in all_tasks if t["task_name"] == task_name_medium.value and t["priority"] == TaskPriority.MEDIUM.value), None)
+    low_task = next((t for t in all_tasks if t["task_name"] == task_name_low.value and t["priority"] == TaskPriority.LOW.value), None)
 
-    assert high_task is not None, f"High task not found. Available titles: {[t['title'] for t in all_tasks[:20]]}"
-    assert medium_task is not None, f"Medium task not found. Available titles: {[t['title'] for t in all_tasks[:20]]}"
-    assert low_task is not None, f"Low task not found. Available titles: {[t['title'] for t in all_tasks[:20]]}"
+    assert high_task is not None, f"High task not found. Available task_names: {[t['task_name'] for t in all_tasks[:20]]}"
+    assert medium_task is not None, f"Medium task not found. Available task_names: {[t['task_name'] for t in all_tasks[:20]]}"
+    assert low_task is not None, f"Low task not found. Available task_names: {[t['task_name'] for t in all_tasks[:20]]}"
     
     tasks = all_tasks
 

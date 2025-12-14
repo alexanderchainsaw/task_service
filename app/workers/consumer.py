@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import random
 from typing import Any
 from uuid import UUID
 
@@ -11,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.config import settings
 from app.db.models import Task, TaskStatus
 from app.logging_config import setup_logging
+from app.tasks import TaskName, get_task_function
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -80,17 +80,45 @@ class TaskWorker:
     async def _execute_task(
         self, payload: dict[str, Any], session: AsyncSession, task: Task
     ) -> None:
-        # Simulate real work; replace with business logic as needed.
-        logger.info(f"Executing task {task.id}")
-        await asyncio.sleep(1)
-        if random.randint(0, 10) == 5:
-            raise ValueError("Simulated task failure")  # simulate error
+        """Execute the actual task function from the registry."""
+        logger.info(f"Executing task {task.id} of type {task.task_name}")
+        
+        # Check if task was cancelled before execution
+        if task.status == TaskStatus.CANCELLED:
+            logger.info(f"Task {task.id} was cancelled before execution")
+            return
+        
+        # Get the task function from registry
+        # task.task_name is already a TaskName enum from the database
+        try:
+            task_function = get_task_function(task.task_name)
+        except ValueError as exc:
+            error_msg = f"Task {task.task_name} is not registered in the registry"
+            logger.error(error_msg)
+            raise ValueError(error_msg) from exc
+        
+        # Execute the task function and capture its return value
+        # Tasks are now pure functions with no dependencies
+        logger.info(f"Calling task function for {task.task_name}")
+        task_result = await task_function()
+        logger.info(f"Task function {task.task_name} completed with result: {task_result}")
+        
+        # Check if task was cancelled during execution
         if task.status == TaskStatus.CANCELLED:
             logger.info(f"Task {task.id} was cancelled during execution")
+            # Still need to commit the cancellation status change
+            await session.flush()
+            await session.commit()
             return
-        task.mark_completed(result="done")
+        
+        # Mark as completed with the result
+        if task.status == TaskStatus.IN_PROGRESS:
+            task.mark_completed(result=task_result)
+        
+        # Always flush and commit after task execution
         await session.flush()
         await session.commit()
+        
         logger.info(f"Task {task.id} completed successfully")
 
 

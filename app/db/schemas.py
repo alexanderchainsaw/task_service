@@ -1,13 +1,14 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.db.models import TaskPriority, TaskStatus
+from app.db.models import TaskName, TaskPriority, TaskStatus
 
 
 class TaskBase(BaseModel):
-    title: str = Field(..., max_length=255)
+    task_name: TaskName
     description: str | None = None
     priority: TaskPriority = TaskPriority.MEDIUM
 
@@ -19,7 +20,7 @@ class TaskCreate(TaskBase):
 class TaskRead(TaskBase):
     id: UUID
     status: TaskStatus
-    result: str | None = None
+    result: Any | None = None
     error: str | None = None
     created_at: datetime
     started_at: datetime | None = None

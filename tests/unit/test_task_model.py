@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.db.models import Task, TaskPriority, TaskStatus
+from app.db.models import Task, TaskName, TaskPriority, TaskStatus
 from tests.conftest import create_task
 
 
@@ -11,11 +11,11 @@ from tests.conftest import create_task
 async def test_task_initial_state():
     """Test that a new task has correct initial state."""
     task = create_task(
-        title="Test Task",
+        task_name=TaskName.SEND_EMAIL,
         description="Test Description",
         priority=TaskPriority.HIGH,
     )
-    assert task.title == "Test Task"
+    assert task.task_name == TaskName.SEND_EMAIL
     assert task.description == "Test Description"
     assert task.priority == TaskPriority.HIGH
     assert task.status == TaskStatus.NEW
@@ -29,7 +29,7 @@ async def test_task_initial_state():
 @pytest.mark.asyncio
 async def test_task_mark_pending():
     """Test marking task as pending."""
-    task = create_task(title="Test", priority=TaskPriority.MEDIUM)
+    task = create_task(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.MEDIUM)
     task.mark_pending()
     assert task.status == TaskStatus.PENDING
     assert task.started_at is None
@@ -39,7 +39,7 @@ async def test_task_mark_pending():
 @pytest.mark.asyncio
 async def test_task_mark_in_progress():
     """Test marking task as in progress."""
-    task = create_task(title="Test", priority=TaskPriority.MEDIUM)
+    task = create_task(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.MEDIUM)
     before = datetime.now(timezone.utc)
     task.mark_in_progress()
     after = datetime.now(timezone.utc)
@@ -52,7 +52,7 @@ async def test_task_mark_in_progress():
 @pytest.mark.asyncio
 async def test_task_mark_completed():
     """Test marking task as completed."""
-    task = create_task(title="Test", priority=TaskPriority.MEDIUM)
+    task = create_task(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.MEDIUM)
     task.mark_in_progress()
     before = datetime.now(timezone.utc)
     task.mark_completed(result="Task completed successfully")
@@ -66,7 +66,7 @@ async def test_task_mark_completed():
 @pytest.mark.asyncio
 async def test_task_mark_completed_without_result():
     """Test marking task as completed without result."""
-    task = create_task(title="Test", priority=TaskPriority.MEDIUM)
+    task = create_task(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.MEDIUM)
     task.mark_completed()
     assert task.status == TaskStatus.COMPLETED
     assert task.result is None
@@ -76,7 +76,7 @@ async def test_task_mark_completed_without_result():
 @pytest.mark.asyncio
 async def test_task_mark_failed():
     """Test marking task as failed."""
-    task = create_task(title="Test", priority=TaskPriority.MEDIUM)
+    task = create_task(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.MEDIUM)
     task.mark_in_progress()
     error_msg = "Something went wrong"
     before = datetime.now(timezone.utc)
@@ -91,7 +91,7 @@ async def test_task_mark_failed():
 @pytest.mark.asyncio
 async def test_task_mark_cancelled():
     """Test marking task as cancelled."""
-    task = create_task(title="Test", priority=TaskPriority.MEDIUM)
+    task = create_task(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.MEDIUM)
     task.mark_pending()
     before = datetime.now(timezone.utc)
     task.mark_cancelled()
@@ -104,7 +104,7 @@ async def test_task_mark_cancelled():
 @pytest.mark.asyncio
 async def test_task_status_transitions():
     """Test valid status transitions."""
-    task = create_task(title="Test", priority=TaskPriority.MEDIUM)
+    task = create_task(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.MEDIUM)
     assert task.status == TaskStatus.NEW
 
     task.mark_pending()
@@ -120,7 +120,7 @@ async def test_task_status_transitions():
 @pytest.mark.asyncio
 async def test_task_cancellation_from_pending():
     """Test cancelling task from pending state."""
-    task = create_task(title="Test", priority=TaskPriority.MEDIUM)
+    task = create_task(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.MEDIUM)
     task.mark_pending()
     task.mark_cancelled()
     assert task.status == TaskStatus.CANCELLED
@@ -129,7 +129,7 @@ async def test_task_cancellation_from_pending():
 @pytest.mark.asyncio
 async def test_task_cancellation_from_in_progress():
     """Test cancelling task from in_progress state."""
-    task = create_task(title="Test", priority=TaskPriority.MEDIUM)
+    task = create_task(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.MEDIUM)
     task.mark_pending()
     task.mark_in_progress()
     task.mark_cancelled()

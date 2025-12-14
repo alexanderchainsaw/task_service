@@ -1,4 +1,5 @@
 """Shared pytest fixtures for unit and integration tests."""
+import os
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
@@ -7,19 +8,48 @@ import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from testcontainers.postgres import PostgresContainer
 
 from app.api import deps
 from app.api.routes import tasks as tasks_router
 from app.db.session import get_session
-from app.db.models import Base, Task, TaskPriority, TaskStatus
+from app.db.models import Base, Task, TaskName, TaskPriority, TaskStatus
 from app.db.repository import TaskRepository
 from app.services.task_service import TaskService
 
 
+@pytest.fixture(scope="session")
+def postgres_container():
+    """Start a PostgreSQL container for testing using testcontainers."""
+    # Allow override via environment variable for CI/CD or manual testing
+    test_db_url = os.getenv("TEST_DATABASE_URL")
+    if test_db_url:
+        # If TEST_DATABASE_URL is provided, use it directly (no container)
+        yield None
+        return
+    
+    # Simple testcontainers setup as per their docs
+    with PostgresContainer("postgres:14-alpine", driver='asyncpg') as postgres:
+        yield postgres
+
+
 @pytest_asyncio.fixture(scope="session")
-async def test_engine():
-    """Create test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", future=True, echo=False)
+async def test_engine(postgres_container):
+    """Create test database engine using PostgreSQL."""
+    # test_db_url = os.getenv("TEST_DATABASE_URL")
+    #
+    # if test_db_url:
+    #     database_url = test_db_url
+    # elif postgres_container:
+    #     # Get connection URL and convert to asyncpg format
+    #     container_url = postgres_container.get_connection_url()
+    #     # Convert postgresql:// to postgresql+asyncpg://
+    #     database_url = container_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    # else:
+    #     raise RuntimeError("No database URL provided and container failed to start")
+    # Simple engine creation
+    from sqlalchemy.pool import NullPool
+    engine = create_async_engine(postgres_container.get_connection_url(), echo=False, poolclass=NullPool)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine
@@ -28,16 +58,13 @@ async def test_engine():
 
 @pytest_asyncio.fixture
 async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session with transaction rollback."""
-    connection = await test_engine.connect()
-    transaction = await connection.begin()
-    session = async_sessionmaker(bind=connection, expire_on_commit=False, class_=AsyncSession)()
-
-    yield session
-
-    await session.close()
-    await transaction.rollback()
-    await connection.close()
+    """Create a test database session - simple setup."""
+    async_session_maker = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    
+    async with async_session_maker() as session:
+        yield session
 
 
 @pytest_asyncio.fixture
@@ -107,6 +134,7 @@ async def test_session_for_commit(test_session):
 def create_task(**kwargs) -> Task:
     """Factory function to create Task instances for tests with defaults."""
     defaults = {
+        "task_name": TaskName.SEND_EMAIL,
         "status": TaskStatus.NEW,
         "priority": TaskPriority.MEDIUM,
         "created_at": datetime.now(timezone.utc),

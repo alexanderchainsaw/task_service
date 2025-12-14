@@ -1,9 +1,11 @@
 
+
 lint:
 	uv run isort ./app
 	uv run black ./app
 
 test:
+	uv sync
 	pytest -v --cov=app
 
 build:

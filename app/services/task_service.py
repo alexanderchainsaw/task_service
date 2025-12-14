@@ -19,7 +19,7 @@ class TaskService:
     async def create(self, payload: TaskCreate) -> Task:
         """Create a new task with NEW status. Publishing is handled by a separate workers."""
         task = Task(
-            title=payload.title,
+            task_name=payload.task_name,
             description=payload.description,
             priority=payload.priority,
             status=TaskStatus.NEW,
