@@ -36,18 +36,18 @@ async def test_register_task_duplicate():
     # Use a task name that's already registered
     # We'll temporarily remove it, register a new one, then try to register again
     original_func = TASK_REGISTRY.pop(TaskName.SEND_EMAIL, None)
-    
+
     try:
         # Register it once
         async def mock_task() -> None:
             pass
-        
+
         register_task(TaskName.SEND_EMAIL)(mock_task)
-        
+
         # Try to register it again with a different function - should fail
         async def another_task() -> None:
             pass
-        
+
         with pytest.raises(ValueError, match="already registered"):
             register_task(TaskName.SEND_EMAIL)(another_task)
     finally:
@@ -71,10 +71,8 @@ async def test_task_registry_populated():
         TaskName.ALWAYS_RAISE_VALUE_ERROR,
         TaskName.ALWAYS_RAISE_RUNTIME_ERROR,
     ]
-    
+
     for task_name in expected_tasks:
         assert task_name in TASK_REGISTRY, f"Task {task_name} should be registered"
         task_function = get_task_function(task_name)
         assert callable(task_function)
-
-

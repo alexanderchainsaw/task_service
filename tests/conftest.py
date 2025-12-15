@@ -1,4 +1,5 @@
 """Shared pytest fixtures for unit and integration tests."""
+
 import os
 from datetime import datetime, timezone
 from typing import AsyncGenerator
@@ -12,9 +13,9 @@ from testcontainers.postgres import PostgresContainer
 
 from app.api import deps
 from app.api.routes import tasks as tasks_router
-from app.db.session import get_session
 from app.db.models import Base, Task, TaskName, TaskPriority, TaskStatus
 from app.db.repository import TaskRepository
+from app.db.session import get_session
 from app.services.task_service import TaskService
 
 
@@ -27,9 +28,9 @@ def postgres_container():
         # If TEST_DATABASE_URL is provided, use it directly (no container)
         yield None
         return
-    
+
     # Simple testcontainers setup as per their docs
-    with PostgresContainer("postgres:14-alpine", driver='asyncpg') as postgres:
+    with PostgresContainer("postgres:14-alpine", driver="asyncpg") as postgres:
         yield postgres
 
 
@@ -49,7 +50,10 @@ async def test_engine(postgres_container):
     #     raise RuntimeError("No database URL provided and container failed to start")
     # Simple engine creation
     from sqlalchemy.pool import NullPool
-    engine = create_async_engine(postgres_container.get_connection_url(), echo=False, poolclass=NullPool)
+
+    engine = create_async_engine(
+        postgres_container.get_connection_url(), echo=False, poolclass=NullPool
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine
@@ -62,7 +66,7 @@ async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     async_session_maker = async_sessionmaker(
         test_engine, class_=AsyncSession, expire_on_commit=False
     )
-    
+
     async with async_session_maker() as session:
         yield session
 
@@ -141,4 +145,3 @@ def create_task(**kwargs) -> Task:
     }
     defaults.update(kwargs)
     return Task(**defaults)
-

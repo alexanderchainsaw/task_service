@@ -41,5 +41,3 @@ def get_task_function(task_name: TaskName) -> TaskFunction:
 # This must be at the bottom to avoid circular imports - the functions above
 # need to be defined before the task modules try to import them
 from app.tasks import data_tasks, email_tasks, failing_tasks, image_tasks  # noqa: F401, E402
-
-

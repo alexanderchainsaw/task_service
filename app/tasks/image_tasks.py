@@ -15,5 +15,3 @@ async def compress_image_task() -> dict:
     """Compress an image."""
     # TODO: Implement actual image compression logic
     return {"original_size": 1024000, "compressed_size": 256000, "ratio": 0.25}
-
-

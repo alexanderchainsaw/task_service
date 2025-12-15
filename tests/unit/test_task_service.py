@@ -1,4 +1,5 @@
 """Unit tests for TaskService."""
+
 import asyncio
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -25,7 +26,9 @@ async def test_create_task(task_service, mock_publisher):
     assert task.task_name == TaskName.SEND_EMAIL
     assert task.description == "Test Description"
     assert task.priority == TaskPriority.HIGH
-    assert task.status == TaskStatus.NEW  # Tasks are created with NEW status, publishing is handled by workers
+    assert (
+        task.status == TaskStatus.NEW
+    )  # Tasks are created with NEW status, publishing is handled by workers
     assert task.created_at is not None
 
     # Publishing is now handled by a separate workers, so no queue interaction here
@@ -66,7 +69,13 @@ async def test_list_tasks_no_filters(task_service, mock_publisher):
     """Test listing tasks without filters."""
     # Create multiple tasks and track their IDs
     created_task_ids = []
-    task_names = [TaskName.SEND_EMAIL, TaskName.SEND_BULK_EMAIL, TaskName.RESIZE_IMAGE, TaskName.COMPRESS_IMAGE, TaskName.EXPORT_DATA]
+    task_names = [
+        TaskName.SEND_EMAIL,
+        TaskName.SEND_BULK_EMAIL,
+        TaskName.RESIZE_IMAGE,
+        TaskName.COMPRESS_IMAGE,
+        TaskName.EXPORT_DATA,
+    ]
     for task_name in task_names:
         payload = TaskCreate(task_name=task_name, priority=TaskPriority.MEDIUM)
         task = await task_service.create(payload)
@@ -115,8 +124,12 @@ async def test_list_tasks_with_priority_filter(task_service, mock_publisher):
     """Test listing tasks filtered by priority."""
     # Create tasks with different priorities
     await task_service.create(TaskCreate(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.HIGH))
-    await task_service.create(TaskCreate(task_name=TaskName.SEND_BULK_EMAIL, priority=TaskPriority.MEDIUM))
-    await task_service.create(TaskCreate(task_name=TaskName.RESIZE_IMAGE, priority=TaskPriority.LOW))
+    await task_service.create(
+        TaskCreate(task_name=TaskName.SEND_BULK_EMAIL, priority=TaskPriority.MEDIUM)
+    )
+    await task_service.create(
+        TaskCreate(task_name=TaskName.RESIZE_IMAGE, priority=TaskPriority.LOW)
+    )
 
     high_tasks = await task_service.list(priority=TaskPriority.HIGH)
     high_list = list(high_tasks)
@@ -132,7 +145,9 @@ async def test_list_tasks_with_date_filters(task_service, mock_publisher):
     tomorrow = now + timedelta(days=1)
 
     # Create a task
-    await task_service.create(TaskCreate(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.MEDIUM))
+    await task_service.create(
+        TaskCreate(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.MEDIUM)
+    )
 
     # Filter by date range
     recent_tasks = await task_service.list(created_from=yesterday, created_to=tomorrow)
@@ -144,7 +159,14 @@ async def test_list_tasks_with_date_filters(task_service, mock_publisher):
 async def test_list_tasks_with_pagination(task_service, mock_publisher):
     """Test listing tasks with pagination."""
     # Create 10 tasks
-    task_names = [TaskName.SEND_EMAIL, TaskName.SEND_BULK_EMAIL, TaskName.RESIZE_IMAGE, TaskName.COMPRESS_IMAGE, TaskName.EXPORT_DATA, TaskName.IMPORT_DATA]
+    task_names = [
+        TaskName.SEND_EMAIL,
+        TaskName.SEND_BULK_EMAIL,
+        TaskName.RESIZE_IMAGE,
+        TaskName.COMPRESS_IMAGE,
+        TaskName.EXPORT_DATA,
+        TaskName.IMPORT_DATA,
+    ]
     for i in range(10):
         task_name = task_names[i % len(task_names)]
         await task_service.create(TaskCreate(task_name=task_name, priority=TaskPriority.MEDIUM))
@@ -171,15 +193,21 @@ async def test_list_tasks_with_pagination(task_service, mock_publisher):
 async def test_list_tasks_ordering(task_service, task_repository, mock_publisher):
     """Test that tasks are ordered by priority (desc) and created_at (asc)."""
     # Create tasks with different priorities and unique task names to avoid conflicts
-    low_task = await task_service.create(TaskCreate(task_name=TaskName.EXPORT_DATA, priority=TaskPriority.LOW))
+    low_task = await task_service.create(
+        TaskCreate(task_name=TaskName.EXPORT_DATA, priority=TaskPriority.LOW)
+    )
     await task_repository.update(low_task)  # Ensure it's committed
     await asyncio.sleep(0.01)  # Small delay to ensure different timestamps
 
-    high_task = await task_service.create(TaskCreate(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.HIGH))
+    high_task = await task_service.create(
+        TaskCreate(task_name=TaskName.SEND_EMAIL, priority=TaskPriority.HIGH)
+    )
     await task_repository.update(high_task)  # Ensure it's committed
     await asyncio.sleep(0.01)
 
-    medium_task = await task_service.create(TaskCreate(task_name=TaskName.RESIZE_IMAGE, priority=TaskPriority.MEDIUM))
+    medium_task = await task_service.create(
+        TaskCreate(task_name=TaskName.RESIZE_IMAGE, priority=TaskPriority.MEDIUM)
+    )
     await task_repository.update(medium_task)  # Ensure it's committed
 
     # Use a large pagination limit to ensure we get all tasks (including from other tests)
@@ -188,13 +216,40 @@ async def test_list_tasks_ordering(task_service, task_repository, mock_publisher
     task_list = list(tasks)
 
     # Find our specific tasks in the list
-    low_found = next((t for t in task_list if t.task_name == TaskName.EXPORT_DATA and t.priority == TaskPriority.LOW), None)
-    high_found = next((t for t in task_list if t.task_name == TaskName.SEND_EMAIL and t.priority == TaskPriority.HIGH), None)
-    medium_found = next((t for t in task_list if t.task_name == TaskName.RESIZE_IMAGE and t.priority == TaskPriority.MEDIUM), None)
+    low_found = next(
+        (
+            t
+            for t in task_list
+            if t.task_name == TaskName.EXPORT_DATA and t.priority == TaskPriority.LOW
+        ),
+        None,
+    )
+    high_found = next(
+        (
+            t
+            for t in task_list
+            if t.task_name == TaskName.SEND_EMAIL and t.priority == TaskPriority.HIGH
+        ),
+        None,
+    )
+    medium_found = next(
+        (
+            t
+            for t in task_list
+            if t.task_name == TaskName.RESIZE_IMAGE and t.priority == TaskPriority.MEDIUM
+        ),
+        None,
+    )
 
-    assert low_found is not None, f"Low task not found. Available: {[t.task_name for t in task_list[:10]]}"
-    assert high_found is not None, f"High task not found. Available: {[t.task_name for t in task_list[:10]]}"
-    assert medium_found is not None, f"Medium task not found. Available: {[t.task_name for t in task_list[:10]]}"
+    assert (
+        low_found is not None
+    ), f"Low task not found. Available: {[t.task_name for t in task_list[:10]]}"
+    assert (
+        high_found is not None
+    ), f"High task not found. Available: {[t.task_name for t in task_list[:10]]}"
+    assert (
+        medium_found is not None
+    ), f"Medium task not found. Available: {[t.task_name for t in task_list[:10]]}"
 
     # Get indices
     low_idx = task_list.index(low_found)
@@ -269,4 +324,3 @@ async def test_cancel_cancelled_task(task_service, task_repository, mock_publish
     original_status = task.status
     cancelled_task = await task_service.cancel(task)
     assert cancelled_task.status == original_status  # Should not change
-

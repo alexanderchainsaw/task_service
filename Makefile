@@ -4,6 +4,10 @@ lint:
 	uv run isort ./app
 	uv run black ./app
 
+lint-tests:
+	uv run isort ./tests
+	uv run black ./tests
+
 test:
 	uv sync
 	pytest -v --cov=app

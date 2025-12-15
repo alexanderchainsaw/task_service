@@ -19,4 +19,3 @@ async def always_raise_value_error_task() -> None:
 async def always_raise_runtime_error_task() -> None:
     """Task that always raises a RuntimeError."""
     raise RuntimeError("Runtime error occurred in task")
-

@@ -1,4 +1,5 @@
 """Integration tests for Tasks API endpoints."""
+
 import asyncio
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
@@ -133,8 +134,14 @@ async def test_list_tasks_with_status_filter(test_client):
 async def test_list_tasks_with_priority_filter(test_client):
     """Test listing tasks filtered by priority."""
     # Create tasks with different priorities
-    await test_client.post("/api/v1/tasks", json={"task_name": TaskName.SEND_EMAIL.value, "priority": TaskPriority.HIGH.value})
-    await test_client.post("/api/v1/tasks", json={"task_name": TaskName.SEND_BULK_EMAIL.value, "priority": TaskPriority.LOW.value})
+    await test_client.post(
+        "/api/v1/tasks",
+        json={"task_name": TaskName.SEND_EMAIL.value, "priority": TaskPriority.HIGH.value},
+    )
+    await test_client.post(
+        "/api/v1/tasks",
+        json={"task_name": TaskName.SEND_BULK_EMAIL.value, "priority": TaskPriority.LOW.value},
+    )
 
     # Filter by priority
     response = await test_client.get(f"/api/v1/tasks?priority={TaskPriority.HIGH.value}")
@@ -147,12 +154,15 @@ async def test_list_tasks_with_priority_filter(test_client):
 async def test_list_tasks_with_date_filters(test_client):
     """Test listing tasks filtered by creation date."""
     # Create a task
-    await test_client.post("/api/v1/tasks", json={"task_name": TaskName.SEND_EMAIL.value, "priority": TaskPriority.MEDIUM.value})
+    await test_client.post(
+        "/api/v1/tasks",
+        json={"task_name": TaskName.SEND_EMAIL.value, "priority": TaskPriority.MEDIUM.value},
+    )
 
     # Filter by date range - URL encode ISO format dates to handle colons
-    from_date = (datetime.now(timezone.utc) - timedelta(days=1))
-    to_date = (datetime.now(timezone.utc) + timedelta(days=1))
-    
+    from_date = datetime.now(timezone.utc) - timedelta(days=1)
+    to_date = datetime.now(timezone.utc) + timedelta(days=1)
+
     # FastAPI can parse ISO format from query params, but colons need URL encoding
     from_date_str = quote(from_date.isoformat())
     to_date_str = quote(to_date.isoformat())
@@ -169,7 +179,14 @@ async def test_list_tasks_with_date_filters(test_client):
 async def test_list_tasks_with_pagination(test_client):
     """Test listing tasks with pagination."""
     # Create 10 tasks
-    task_names = [TaskName.SEND_EMAIL, TaskName.SEND_BULK_EMAIL, TaskName.RESIZE_IMAGE, TaskName.COMPRESS_IMAGE, TaskName.EXPORT_DATA, TaskName.IMPORT_DATA]
+    task_names = [
+        TaskName.SEND_EMAIL,
+        TaskName.SEND_BULK_EMAIL,
+        TaskName.RESIZE_IMAGE,
+        TaskName.COMPRESS_IMAGE,
+        TaskName.EXPORT_DATA,
+        TaskName.IMPORT_DATA,
+    ]
     for i in range(10):
         task_name = task_names[i % len(task_names)]
         payload = {"task_name": task_name.value, "priority": TaskPriority.MEDIUM.value}
@@ -297,7 +314,9 @@ async def test_task_lifecycle_integration(test_client):
     # 3. Get status
     status_response = await test_client.get(f"/api/v1/tasks/{task_id}/status")
     assert status_response.status_code == 200
-    assert status_response.json()["status"] == TaskStatus.NEW.value  # Tasks are created with NEW status
+    assert (
+        status_response.json()["status"] == TaskStatus.NEW.value
+    )  # Tasks are created with NEW status
 
     # 4. Cancel task
     cancel_response = await test_client.delete(f"/api/v1/tasks/{task_id}")
@@ -316,12 +335,20 @@ async def test_list_tasks_ordering(test_client):
     task_name_low = TaskName.EXPORT_DATA
     task_name_high = TaskName.SEND_EMAIL
     task_name_medium = TaskName.RESIZE_IMAGE
-    
-    await test_client.post("/api/v1/tasks", json={"task_name": task_name_low.value, "priority": TaskPriority.LOW.value})
+
+    await test_client.post(
+        "/api/v1/tasks", json={"task_name": task_name_low.value, "priority": TaskPriority.LOW.value}
+    )
     await asyncio.sleep(0.01)
-    await test_client.post("/api/v1/tasks", json={"task_name": task_name_high.value, "priority": TaskPriority.HIGH.value})
+    await test_client.post(
+        "/api/v1/tasks",
+        json={"task_name": task_name_high.value, "priority": TaskPriority.HIGH.value},
+    )
     await asyncio.sleep(0.01)
-    await test_client.post("/api/v1/tasks", json={"task_name": task_name_medium.value, "priority": TaskPriority.MEDIUM.value})
+    await test_client.post(
+        "/api/v1/tasks",
+        json={"task_name": task_name_medium.value, "priority": TaskPriority.MEDIUM.value},
+    )
 
     # Get all tasks - may need to paginate if there are many
     all_tasks = []
@@ -339,14 +366,42 @@ async def test_list_tasks_ordering(test_client):
         offset += limit
 
     # Find our tasks by task_name and priority
-    high_task = next((t for t in all_tasks if t["task_name"] == task_name_high.value and t["priority"] == TaskPriority.HIGH.value), None)
-    medium_task = next((t for t in all_tasks if t["task_name"] == task_name_medium.value and t["priority"] == TaskPriority.MEDIUM.value), None)
-    low_task = next((t for t in all_tasks if t["task_name"] == task_name_low.value and t["priority"] == TaskPriority.LOW.value), None)
+    high_task = next(
+        (
+            t
+            for t in all_tasks
+            if t["task_name"] == task_name_high.value and t["priority"] == TaskPriority.HIGH.value
+        ),
+        None,
+    )
+    medium_task = next(
+        (
+            t
+            for t in all_tasks
+            if t["task_name"] == task_name_medium.value
+            and t["priority"] == TaskPriority.MEDIUM.value
+        ),
+        None,
+    )
+    low_task = next(
+        (
+            t
+            for t in all_tasks
+            if t["task_name"] == task_name_low.value and t["priority"] == TaskPriority.LOW.value
+        ),
+        None,
+    )
 
-    assert high_task is not None, f"High task not found. Available task_names: {[t['task_name'] for t in all_tasks[:20]]}"
-    assert medium_task is not None, f"Medium task not found. Available task_names: {[t['task_name'] for t in all_tasks[:20]]}"
-    assert low_task is not None, f"Low task not found. Available task_names: {[t['task_name'] for t in all_tasks[:20]]}"
-    
+    assert (
+        high_task is not None
+    ), f"High task not found. Available task_names: {[t['task_name'] for t in all_tasks[:20]]}"
+    assert (
+        medium_task is not None
+    ), f"Medium task not found. Available task_names: {[t['task_name'] for t in all_tasks[:20]]}"
+    assert (
+        low_task is not None
+    ), f"Low task not found. Available task_names: {[t['task_name'] for t in all_tasks[:20]]}"
+
     tasks = all_tasks
 
     # High priority should appear before medium and low
@@ -354,7 +409,12 @@ async def test_list_tasks_ordering(test_client):
     medium_index = tasks.index(medium_task)
     low_index = tasks.index(low_task)
 
-    assert high_index < medium_index, f"High (index {high_index}) should come before Medium (index {medium_index})"
-    assert high_index < low_index, f"High (index {high_index}) should come before Low (index {low_index})"
-    assert medium_index < low_index, f"Medium (index {medium_index}) should come before Low (index {low_index})"
-
+    assert (
+        high_index < medium_index
+    ), f"High (index {high_index}) should come before Medium (index {medium_index})"
+    assert (
+        high_index < low_index
+    ), f"High (index {high_index}) should come before Low (index {low_index})"
+    assert (
+        medium_index < low_index
+    ), f"Medium (index {medium_index}) should come before Low (index {low_index})"

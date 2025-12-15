@@ -15,5 +15,3 @@ async def import_data_task() -> dict:
     """Import data from a file."""
     # TODO: Implement actual data import logic
     return {"rows_imported": 500, "errors": 0}
-
-

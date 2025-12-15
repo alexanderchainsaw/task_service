@@ -78,5 +78,3 @@ async def test_always_raise_runtime_error_task():
     """Test that always_raise_runtime_error task raises RuntimeError."""
     with pytest.raises(RuntimeError, match="Runtime error occurred in task"):
         await always_raise_runtime_error_task()
-
-

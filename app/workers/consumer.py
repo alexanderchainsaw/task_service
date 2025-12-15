@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-from typing import Any
 from uuid import UUID
 
 import aio_pika
@@ -9,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.config import settings
 from app.db.models import Task, TaskStatus
+from app.db.repository import TaskRepository
 from app.logging_config import setup_logging
 from app.tasks import TaskName, get_task_function
 
@@ -50,7 +50,6 @@ class TaskWorker:
                 # Use SELECT FOR UPDATE to prevent concurrent processing of the same task
                 # This is important if a message is redelivered or multiple consumers
                 # somehow get the same message
-                from app.db.repository import TaskRepository
 
                 repository = TaskRepository(session)
                 task = await repository.get_by_id(task_id, with_lock=True)
@@ -65,7 +64,7 @@ class TaskWorker:
                 await session.commit()  # Commit since we manage our own session
                 logger.info(f"Task {task_id} marked as IN_PROGRESS")
                 try:
-                    await self._execute_task(payload, session, task)
+                    await self._execute_task(session, task)
                 except Exception as exc:  # noqa: BLE001
                     logger.error(f"Task {task_id} failed: {exc}", exc_info=True)
                     # Re-fetch task to ensure it's attached to the session after commit
@@ -77,17 +76,15 @@ class TaskWorker:
                         await session.commit()
                         logger.info(f"Task {task_id} marked as FAILED with error: {error_message}")
 
-    async def _execute_task(
-        self, payload: dict[str, Any], session: AsyncSession, task: Task
-    ) -> None:
+    async def _execute_task(self, session: AsyncSession, task: Task) -> None:
         """Execute the actual task function from the registry."""
         logger.info(f"Executing task {task.id} of type {task.task_name}")
-        
+
         # Check if task was cancelled before execution
         if task.status == TaskStatus.CANCELLED:
             logger.info(f"Task {task.id} was cancelled before execution")
             return
-        
+
         # Get the task function from registry
         # task.task_name is already a TaskName enum from the database
         try:
@@ -96,13 +93,13 @@ class TaskWorker:
             error_msg = f"Task {task.task_name} is not registered in the registry"
             logger.error(error_msg)
             raise ValueError(error_msg) from exc
-        
+
         # Execute the task function and capture its return value
         # Tasks are now pure functions with no dependencies
         logger.info(f"Calling task function for {task.task_name}")
         task_result = await task_function()
         logger.info(f"Task function {task.task_name} completed with result: {task_result}")
-        
+
         # Check if task was cancelled during execution
         if task.status == TaskStatus.CANCELLED:
             logger.info(f"Task {task.id} was cancelled during execution")
@@ -110,15 +107,15 @@ class TaskWorker:
             await session.flush()
             await session.commit()
             return
-        
+
         # Mark as completed with the result
         if task.status == TaskStatus.IN_PROGRESS:
             task.mark_completed(result=task_result)
-        
+
         # Always flush and commit after task execution
         await session.flush()
         await session.commit()
-        
+
         logger.info(f"Task {task.id} completed successfully")
 
 

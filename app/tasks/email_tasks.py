@@ -15,5 +15,3 @@ async def send_bulk_email_task() -> dict:
     """Send bulk emails."""
     # TODO: Implement actual bulk email sending logic
     return {"emails_sent": 100, "status": "completed"}
-
-

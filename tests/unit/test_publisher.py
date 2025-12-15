@@ -1,9 +1,10 @@
 """Unit tests for TaskPublisher."""
+
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 import aio_pika
+import pytest
 
 from app.clients.rabbitmq import RabbitMQClient
 
@@ -154,4 +155,3 @@ async def test_publisher_close_without_connection():
     client = RabbitMQClient()
     # Should not raise an error
     await client.close()
-

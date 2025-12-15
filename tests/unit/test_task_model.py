@@ -1,4 +1,5 @@
 """Unit tests for Task model."""
+
 from datetime import datetime, timezone
 
 import pytest
@@ -134,4 +135,3 @@ async def test_task_cancellation_from_in_progress():
     task.mark_in_progress()
     task.mark_cancelled()
     assert task.status == TaskStatus.CANCELLED
-
